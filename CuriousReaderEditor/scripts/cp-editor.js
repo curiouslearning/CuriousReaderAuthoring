@@ -1379,7 +1379,6 @@ H5PEditor.CuriousReader.prototype.updateKeyword = function (keyword, slideIndex,
 H5PEditor.CuriousReader.prototype.generateForm = function (elementParams, type) {
   var self = this;
   if (type === 'H5P.ContinuousText' && self.ct) {
-    console.log('inside h5p.continuous Text');
     // Continuous Text shares a single form across all elements
     return {
       '$form': self.ct.element.$form,
@@ -1403,7 +1402,6 @@ H5PEditor.CuriousReader.prototype.generateForm = function (elementParams, type) 
     fieldsToHide = ['solution','alwaysDisplayComments','isEdit','displayAsButton','buttonSize','willDoAnimation','animationType','backgroundOpacity'];
     self.hideFields(elementFields, fieldsToHide);
   }
-  console.log('hello rahul singh End');
   // Manipulate semantics into only using a given set of fields
   if (type === 'goToSlide') {
     // Hide all others
@@ -1412,7 +1410,6 @@ H5PEditor.CuriousReader.prototype.generateForm = function (elementParams, type) 
   else {
     var hideFields = ['title', 'goToSlide', 'goToSlideType', 'invisible'];
     if (type === 'H5P.ContinuousText' || type === 'H5P.Audio') {
-      console.log(' iam inside continuous text');
       // Continuous Text or Go To Slide cannot be displayed as a button
       hideFields.push('displayAsButton');
       hideFields.push('buttonSize');
@@ -1704,7 +1701,7 @@ H5PEditor.CuriousReader.prototype.processElement = function (elementParams, $wra
  * @returns {H5P.DragNBarElement}
  */
 H5PEditor.CuriousReader.prototype.addToDragNBar = function (element, elementParams) {
-  var self = this;
+   var self = this;
 
   var type = (elementParams.action ? elementParams.action.library.split(' ')[0] : null);
 
@@ -1742,23 +1739,48 @@ H5PEditor.CuriousReader.prototype.addToDragNBar = function (element, elementPara
         }
       })
     }
+   
+    console.log('Here11');
     var linkEle = '<div class="h5p-dragnbar-context-menu-button dropdown dropbtn linkText" role="button" tabindex="0" aria-label="LinkText"><div class="dropdown-content">'+text+'</div></div>'
     var link = dnbElement.contextMenu.$buttons.append(linkEle);
-    link[0].children[5].addEventListener('click', function (e) { 
+
+    var textIndex = -1;
+      for(var i=0 ; i<self.cp.$current[0].children.length;i++){
+        if(self.cp.$current[0].children[i].children[0].className.toString().includes('h5p-advancedtext')){
+          textIndex=i;
+        }
+      }
+    if(textIndex !=-1 && text !=''){ 
+      link[0].children[5].addEventListener('click', function (e) { 
       var textId = e.target.id
       elementParams.class=textId
       elementParams.id = textId;
       H5P.jQuery(this).find('.dropdown-content').css({ 'display': 'none' })
     });
     H5P.jQuery(link[0].children[5]).mouseenter(function () {
-      H5P.jQuery(this).find('.dropdown-content').css({ 'display': 'block' })
-      H5P.jQuery(this).find('#'+elementParams.id).css({
-        'background-color' : 'yellow'
-      });
-      H5P.jQuery(this).find(":not(#"+elementParams.id+")").css("background-color", "white");
+      textIndex = -1;
+      for(var i=0 ; i<self.cp.$current[0].children.length;i++){
+        if(self.cp.$current[0].children[i].children[0].className.toString().includes('h5p-advancedtext')){
+          textIndex=i;
+        }
+      }
+      console.log(textIndex);
+      console.log(link[0].children[5]);
+      if(textIndex == -1){
+         H5P.jQuery(link[0].children[5]).empty();
+         H5P.jQuery(link[0].children[5]).attr("aria-label", "A text object is needed to link text");      
+      }
+        H5P.jQuery(this).find('.dropdown-content').css({ 'display': 'block' })
+        H5P.jQuery(this).find('#'+elementParams.id).css({
+          'background-color' : 'yellow'
+        });
+        H5P.jQuery(this).find(":not(#"+elementParams.id+")").css("background-color", "white");
     }).mouseleave(function () { 
       H5P.jQuery(this).find('.dropdown-content').css({ 'display': 'none' })
     });
+    }else{
+      H5P.jQuery(link[0].children[5]).attr("aria-label", "A text object is needed to link text");
+    }
   }
   dnbElement.contextMenu.on('contextMenuEdit', function () {
     self.showElementForm(element, element.$wrapper, elementParams);
@@ -1783,37 +1805,54 @@ H5PEditor.CuriousReader.prototype.addToDragNBar = function (element, elementPara
     // Current slide index
     var slideIndex = self.cp.$current.index();
 
-    // Update visuals
-    element.$wrapper.appendTo(self.cp.$current);
-
     // Find slide params
     var slide = self.params.slides[slideIndex].elements;
 
+    // Update visuals
+    if(slide.length > 1 && elementParams.action.library.toString().startsWith('H5P.AdvancedText')){
+       self.cp.$current[0].insertBefore(element.$wrapper.get(0),self.cp.$current[0].children[self.cp.$current[0].children.length -1]);
+    }else{
+       element.$wrapper.appendTo(self.cp.$current);
+    }
+   
     // Remove from old pos
     slide.splice(oldZ, 1);
 
-    // Add to top
-    slide.push(elementParams);
+    if(slide.length > 1 && elementParams.action.library.toString().startsWith('H5P.AdvancedText')){
+      slide.splice(slide.length-1,0,elementParams)
+    }else{
+       // Add to top 
+      slide.push(elementParams);
+    }
 
     // Re-order elements in the same fashion
     self.elements[slideIndex].splice(oldZ, 1);
-    self.elements[slideIndex].push(element);
-
+    if(slide.length > 1 && elementParams.action.library.toString().startsWith('H5P.AdvancedText')){
+      self.elements[slideIndex].splice(slide.length-1,0,element)
+    }else{
+      self.elements[slideIndex].push(element);
+    }
     self.cp.children[slideIndex].moveChild(oldZ, self.cp.children[slideIndex].children.length - 1);
+    // self.cp.children[slideIndex].moveChild(oldZ, self.cp.children[slideIndex].children.length - 2);
   });
 
   dnbElement.contextMenu.on('contextMenuSendToBack', function () {
     // Old index
     var oldZ = element.$wrapper.index();
+    var textIndex =-1;
 
     // Current slide index
     var slideIndex = self.cp.$current.index();
-
-    // Update visuals
-    element.$wrapper.prependTo(self.cp.$current);
-
     // Find slide params
     var slide = self.params.slides[slideIndex].elements;
+    for(var i=0 ; i<self.cp.$current[0].children.length;i++){
+      if(self.cp.$current[0].children[i].children[0].className.toString().includes('h5p-advancedtext')){
+        textIndex=i;
+      }
+    }
+    if(slide.length-1 != oldZ ||(textIndex!=-1 && slide.length-1 == oldZ && oldZ-textIndex>1) || (oldZ<=textIndex)){
+    // Update visuals
+    element.$wrapper.prependTo(self.cp.$current);
 
     // Remove from old pos
     slide.splice(oldZ, 1);
@@ -1826,6 +1865,7 @@ H5PEditor.CuriousReader.prototype.addToDragNBar = function (element, elementPara
     self.elements[slideIndex].unshift(element);
 
     self.cp.children[slideIndex].moveChild(oldZ, 0);
+    }
   });
 
   return dnbElement;
@@ -1955,14 +1995,21 @@ H5PEditor.CuriousReader.prototype.showElementForm = function (element, $wrapper,
       that.redrawElement($wrapper, element, elementParams);
     }
 
-    // if(elementParams.willDoAnimation==true && elementParams.animationType=='glow'
-    // &&  elementParams.isEdit == false){  
-    //   elementParams.isEdit = true; 
+    // if(elementParams.action.library== 'H5P.AdvancedText 1.1'){
+    //   console.log(elementParams);
+    //   console.log(element);
+    //   // elementParams.removeText=false;
     //   let param={};
     //   Object.assign(param, elementParams);
-    //   param.willDoAnimation =false;
+    
     //   this.addElement(param,{});
+    //     this.removeElement(element, element.$wrapper, isContinuousText)
+    //   console.log('inside text');
+      
+    //   // console.log(that.removeElement(element, $wrapper, isContinuousText))
     // }
+    
+   
     that.dnb.preventPaste = false;
   }
   that.on('formdone', handleFormdone);
